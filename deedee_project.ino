@@ -65,12 +65,15 @@ int count = 0;
 bool signupOK = false;
 
 //Define a function to handle switch servo in blynk
+int old_blynk_cmd = 0;
 BLYNK_WRITE(V0) {
   int switchState = param.asInt();
-  if (switchState == 0) {
+  if (switchState == 0 && switchState != old_blynk_cmd) {
     servo.write(0);
-  } else {
+    old_blynk_cmd = switchState;
+  } else if (switchState == 1 && switchState != old_blynk_cmd) {
     servo.write(180);
+    old_blynk_cmd = switchState;
   }
 }
 
@@ -121,6 +124,7 @@ void detectParkingSlot() {
     setTime(timeClient.getEpochTime());
     String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
     Serial.println(timeString);
+    timeIn[1] = timeString;
     isParked[1] = true;  // set the isParked to true
   } else if (lot_2 == LOW && isParked[1] == true) {
     // A new car is stay in the park, we already have save the time! Just print to the LCD that this slot is occupied
@@ -134,6 +138,7 @@ void detectParkingSlot() {
     setTime(timeClient.getEpochTime());
     String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
     Serial.println(timeString);
+    saveFirebase("2", timeIn[1], timeString);
   } else {
     // The parking slot now is empty!!!
     Serial.println("Parking slot 2 is empty");
@@ -150,6 +155,7 @@ void detectParkingSlot() {
     String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
     Serial.println(timeString);
     isParked[2] = true;  // set the isParked to true
+    timeIn[2] = timeString;
   } else if (lot_3 == LOW && isParked[2] == true) {
     // A new car is stay in the park, we already have save the time! Just print to the LCD that this slot is occupied
     Serial.println("Parking slot 3 is occupied!");
@@ -162,6 +168,7 @@ void detectParkingSlot() {
     setTime(timeClient.getEpochTime());
     String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
     Serial.println(timeString);
+    saveFirebase("3", timeIn[2], timeString);
   } else {
     // The parking slot now is empty!!!
     Serial.println("Parking slot 3 is empty");
@@ -177,6 +184,7 @@ void detectParkingSlot() {
     String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
     Serial.println(timeString);
     isParked[3] = true;  // set the isParked to true
+    timeIn[3] = timeString;
   } else if (lot_4 == LOW && isParked[3] == true) {
     // A new car is stay in the park, we already have save the time! Just print to the LCD that this slot is occupied
     Serial.println("Parking slot 4 is occupied!");
@@ -189,6 +197,7 @@ void detectParkingSlot() {
     setTime(timeClient.getEpochTime());
     String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
     Serial.println(timeString);
+    saveFirebase("4", timeIn[3], timeString);
   } else {
     // The parking slot now is empty!!!
     Serial.println("Parking slot 4 is empty");
@@ -203,22 +212,29 @@ void controlGate() {
   // check the car in or out to open the gate
   gate_in = digitalRead(irSensorGate0Pin);
   gate_out = digitalRead(irSensorGate1Pin);
-  Serial.println("!Gate!");
+
   if (gate_in == LOW) {
     openGate();
+    while (gate_in == LOW) {
+      gate_in = digitalRead(irSensorGate0Pin);
+    }
     closeGate();
   } else if (gate_out == LOW) {
-    openGate();
+    while (gate_out == LOW) {
+      openGate();
+      gate_out = digitalRead(irSensorGate1Pin);
+    }
     closeGate();
   }
 }
 
 void openGate() {
   servo.write(180);
-  delay(2000);
+  delay(1000);
 }
 
 void closeGate() {
+  delay(1000);
   servo.write(0);
 }
 
@@ -238,8 +254,6 @@ void saveFirebase(String slot, String timeIn, String timeOut) {
 
 
 void setup() {
-  // initialize the servo object
-  servo.attach(servoPin);
   // set the pins for ir sensors as input
   pinMode(irSensor1Pin, INPUT);
   pinMode(irSensor2Pin, INPUT);
@@ -256,6 +270,9 @@ void setup() {
   Blynk.begin(auth, ssid, pass, "blynk.cloud", 80);
 
   Blynk.virtualWrite(V0, LOW);
+
+  // initialize the servo object
+  servo.attach(servoPin);
 
   // detach the threads to let them run independently
   detectParking_thread.onRun(detectParkingSlot);
