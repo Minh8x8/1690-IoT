@@ -14,13 +14,15 @@
 #include "addons/TokenHelper.h"
 //Provide the RTDB payload printing info and other helper functions.
 #include "addons/RTDBHelper.h"
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h>
 
 #define BLYNK_TEMPLATE_ID "TMPL6bE80JpYR"
 #define BLYNK_TEMPLATE_NAME "Deedee Parking Project"
 #define BLYNK_AUTH_TOKEN "O1FPsoO3-MV_iKuGK_oxhyjRXFWVOLTc"
 
 Servo servo;
-
+LiquidCrystal_I2C lcd(0X27,16,2); //SCL A5 SDA A4
 // Insert Firebase project API Key
 #define API_KEY "AIzaSyDqKyGFVf3v9TySgTBRErRTzmyfZ0nv9iE"
 
@@ -33,12 +35,12 @@ FirebaseAuth fauth;
 FirebaseConfig config;
 
 char auth[] = BLYNK_AUTH_TOKEN;
-char ssid[] = "VT";        //Enter your WIFI name
-char pass[] = "12341234";  //Enter your WIFI password
+char ssid[] = "Greenwich-Student";        //Enter your WIFI name
+char pass[] = "12345678";  //Enter your WIFI password
 
 // define the pins for parking lot
-const int irSensor1Pin = D1;
-const int irSensor2Pin = D2;
+const int irSensor1Pin = D7;
+const int irSensor2Pin = D8;
 const int irSensor3Pin = D3;
 const int irSensor4Pin = D4;
 const int irSensorGate0Pin = D5;
@@ -77,6 +79,23 @@ BLYNK_WRITE(V0) {
   }
 }
 
+void startLCD() {
+  lcd.setCursor(0,0);
+  lcd.print("1: AVL | 2: AVL");
+  lcd.setCursor(0,1);
+  lcd.print("3: AVL | 4: AVL"); 
+}
+
+void setLCD(int cursor, int row, bool isAVL) {
+  if (isAVL) {
+    lcd.setCursor(cursor, row);
+    lcd.print("AVL");
+  } else {
+    lcd.setCursor(cursor, row);
+    lcd.print("N/A");
+  }
+}
+
 // thread function to detect parking slot
 void detectParkingSlot() {
   // read the values from each ir sensors
@@ -96,6 +115,8 @@ void detectParkingSlot() {
     Serial.println(timeString);
     isParked[0] = true;  // set the isParked to true
     timeIn[0] = timeString;
+    // set LCD
+    setLCD(3, 0, false);
   } else if (lot_1 == LOW && isParked[0] == true) {
     // A new car is stay in the park, we already have save the time! Just print to the LCD that this slot is occupied
     Serial.println("Parking slot 1 is occupied!");
@@ -104,11 +125,9 @@ void detectParkingSlot() {
     Serial.println("The car just leave the slot 1");
     isParked[0] = false;
     // TIme
-    timeClient.update();
-    setTime(timeClient.getEpochTime());
-    String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
-    Serial.println(timeString);
-    saveFirebase("1", timeIn[0], timeString);
+//    saveFirebase("1", timeIn[0], timeString);
+    // set LCD
+    setLCD(3, 0, true);
   } else {
     // The parking slot now is empty!!!
     Serial.println("Parking slot 1 is empty");
@@ -126,6 +145,8 @@ void detectParkingSlot() {
     Serial.println(timeString);
     timeIn[1] = timeString;
     isParked[1] = true;  // set the isParked to true
+    // set LCD
+    setLCD(12, 0, false);
   } else if (lot_2 == LOW && isParked[1] == true) {
     // A new car is stay in the park, we already have save the time! Just print to the LCD that this slot is occupied
     Serial.println("Parking slot 2 is occupied!");
@@ -139,6 +160,8 @@ void detectParkingSlot() {
     String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
     Serial.println(timeString);
     saveFirebase("2", timeIn[1], timeString);
+    // set LCD
+    setLCD(12, 0, true);
   } else {
     // The parking slot now is empty!!!
     Serial.println("Parking slot 2 is empty");
@@ -156,6 +179,8 @@ void detectParkingSlot() {
     Serial.println(timeString);
     isParked[2] = true;  // set the isParked to true
     timeIn[2] = timeString;
+    // set LCD
+    setLCD(3, 1, false);
   } else if (lot_3 == LOW && isParked[2] == true) {
     // A new car is stay in the park, we already have save the time! Just print to the LCD that this slot is occupied
     Serial.println("Parking slot 3 is occupied!");
@@ -169,6 +194,8 @@ void detectParkingSlot() {
     String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
     Serial.println(timeString);
     saveFirebase("3", timeIn[2], timeString);
+    // set LCD
+    setLCD(3, 1, true);
   } else {
     // The parking slot now is empty!!!
     Serial.println("Parking slot 3 is empty");
@@ -185,6 +212,8 @@ void detectParkingSlot() {
     Serial.println(timeString);
     isParked[3] = true;  // set the isParked to true
     timeIn[3] = timeString;
+    // set LCD
+    setLCD(12, 1, false);
   } else if (lot_4 == LOW && isParked[3] == true) {
     // A new car is stay in the park, we already have save the time! Just print to the LCD that this slot is occupied
     Serial.println("Parking slot 4 is occupied!");
@@ -198,6 +227,8 @@ void detectParkingSlot() {
     String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
     Serial.println(timeString);
     saveFirebase("4", timeIn[3], timeString);
+    // set LCD
+    setLCD(12, 1, true);
   } else {
     // The parking slot now is empty!!!
     Serial.println("Parking slot 4 is empty");
@@ -262,6 +293,10 @@ void setup() {
   // set the pins for the gate
   pinMode(irSensorGate0Pin, INPUT);
   pinMode(irSensorGate1Pin, INPUT);
+  // set LCD
+  lcd.begin();
+  lcd.clear();
+  startLCD();
 
   // initialize the serial communication for debugging
   Serial.begin(9600);
