@@ -35,8 +35,8 @@ FirebaseAuth fauth;
 FirebaseConfig config;
 
 char auth[] = BLYNK_AUTH_TOKEN;
-char ssid[] = "Greenwich-Student";        //Enter your WIFI name
-char pass[] = "12345678";  //Enter your WIFI password
+char ssid[] = "VT";        //Enter your WIFI name
+char pass[] = "12341234";  //Enter your WIFI password
 
 // define the pins for parking lot
 const int irSensor1Pin = D7;
@@ -46,6 +46,7 @@ const int irSensor4Pin = D4;
 const int irSensorGate0Pin = D5;
 const int irSensorGate1Pin = D6;
 const int servoPin = D0;
+
 bool isParked[4] = { false, false, false, false };
 String timeIn[4] = { "null", "null", "null", "null" };
 
@@ -86,7 +87,20 @@ void startLCD() {
   lcd.print("3: AVL | 4: AVL"); 
 }
 
-void setLCD(int cursor, int row, bool isAVL) {
+void setLCD(int slotID, bool isAVL) {
+  int row = 0;
+  int cursor = 0;
+  if (slotID == 1) cursor = 3;
+  else if (slotID == 2) cursor = 12;
+  else if (slotID == 3) {
+    cursor = 3;
+    row = 1;
+  }
+  else {
+    // slotID == 4
+    cursor = 12;
+    row = 1;
+  }
   if (isAVL) {
     lcd.setCursor(cursor, row);
     lcd.print("AVL");
@@ -96,144 +110,45 @@ void setLCD(int cursor, int row, bool isAVL) {
   }
 }
 
+void parkingSlotCheck(int IRValue, int slotID) {
+  // This mean a new car just entered
+  if (IRValue == LOW && isParked[slotID-1] == false) {
+    Serial.print("A new car entered to slot "); Serial.println(slotID);
+    timeClient.update();
+    setTime(timeClient.getEpochTime());
+    String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
+    Serial.println(timeString);
+    isParked[slotID-1] = true;
+    timeIn[slotID-1] = timeString;
+    // set LCD
+    setLCD(slotID, false);
+  } else if (IRValue == LOW && isParked[slotID-1] == true) {
+    // A new car is stay in the park, we already have save the time! Just print to the LCD that this slot is occupied
+    Serial.print("Parking slot "); Serial.print(slotID); Serial.println(" is occupied!");
+  } else if (IRValue == HIGH && isParked[slotID-1] == true) {
+    // A new car has just leave the parking slot!!! Save the leave time to firebase
+    Serial.print("The car just leave the slot "); Serial.println(slotID);
+    isParked[slotID-1] = false;
+    // Time
+    timeClient.update();
+    setTime(timeClient.getEpochTime());
+    String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
+    Serial.println(timeString);
+    saveFirebase(String(slotID), timeIn[slotID-1], timeString);
+    // set LCD
+    setLCD(slotID, true);
+  } else {
+    // The parking slot now is empty!!!
+    Serial.print("Parking slot "); Serial.print(slotID); Serial.println(" is empty");
+  }
+}
+
 // thread function to detect parking slot
 void detectParkingSlot() {
-  // read the values from each ir sensors
-  int lot_1 = digitalRead(irSensor1Pin);
-  int lot_2 = digitalRead(irSensor2Pin);
-  int lot_3 = digitalRead(irSensor3Pin);
-  int lot_4 = digitalRead(irSensor4Pin);
-
-  // This mean a new car just entered
-  if (lot_1 == LOW && isParked[0] == false) {
-    Serial.println("A new car entered to slot 1");
-    // save the time its entered and save to firebase
-    // TIme
-    timeClient.update();
-    setTime(timeClient.getEpochTime());
-    String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
-    Serial.println(timeString);
-    isParked[0] = true;  // set the isParked to true
-    timeIn[0] = timeString;
-    // set LCD
-    setLCD(3, 0, false);
-  } else if (lot_1 == LOW && isParked[0] == true) {
-    // A new car is stay in the park, we already have save the time! Just print to the LCD that this slot is occupied
-    Serial.println("Parking slot 1 is occupied!");
-  } else if (lot_1 == HIGH && isParked[0] == true) {
-    // A new car has just leave the parking slot!!! Save the leave time to firebase
-    Serial.println("The car just leave the slot 1");
-    isParked[0] = false;
-    // TIme
-//    saveFirebase("1", timeIn[0], timeString);
-    // set LCD
-    setLCD(3, 0, true);
-  } else {
-    // The parking slot now is empty!!!
-    Serial.println("Parking slot 1 is empty");
-  }
-
-  // lot_2
-  // This mean a new car just entered
-  if (lot_2 == LOW && isParked[1] == false) {
-    Serial.println("A new car entered to slot 2");
-    // save the time its entered and save to firebase
-    // TIme
-    timeClient.update();
-    setTime(timeClient.getEpochTime());
-    String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
-    Serial.println(timeString);
-    timeIn[1] = timeString;
-    isParked[1] = true;  // set the isParked to true
-    // set LCD
-    setLCD(12, 0, false);
-  } else if (lot_2 == LOW && isParked[1] == true) {
-    // A new car is stay in the park, we already have save the time! Just print to the LCD that this slot is occupied
-    Serial.println("Parking slot 2 is occupied!");
-  } else if (lot_2 == HIGH && isParked[1] == true) {
-    // A new car has just leave the parking slot!!! Save the leave time to firebase
-    Serial.println("The car just leave the slot 2");
-    isParked[1] = false;
-    // TIme
-    timeClient.update();
-    setTime(timeClient.getEpochTime());
-    String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
-    Serial.println(timeString);
-    saveFirebase("2", timeIn[1], timeString);
-    // set LCD
-    setLCD(12, 0, true);
-  } else {
-    // The parking slot now is empty!!!
-    Serial.println("Parking slot 2 is empty");
-  }
-
-  // 3
-  // This mean a new car just entered
-  if (lot_3 == LOW && isParked[2] == false) {
-    Serial.println("A new car entered to slot 3");
-    // save the time its entered and save to firebase
-    // TIme
-    timeClient.update();
-    setTime(timeClient.getEpochTime());
-    String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
-    Serial.println(timeString);
-    isParked[2] = true;  // set the isParked to true
-    timeIn[2] = timeString;
-    // set LCD
-    setLCD(3, 1, false);
-  } else if (lot_3 == LOW && isParked[2] == true) {
-    // A new car is stay in the park, we already have save the time! Just print to the LCD that this slot is occupied
-    Serial.println("Parking slot 3 is occupied!");
-  } else if (lot_3 == HIGH && isParked[2] == true) {
-    // A new car has just leave the parking slot!!! Save the leave time to firebase
-    Serial.println("The car just leave the slot 3");
-    isParked[2] = false;
-    // TIme
-    timeClient.update();
-    setTime(timeClient.getEpochTime());
-    String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
-    Serial.println(timeString);
-    saveFirebase("3", timeIn[2], timeString);
-    // set LCD
-    setLCD(3, 1, true);
-  } else {
-    // The parking slot now is empty!!!
-    Serial.println("Parking slot 3 is empty");
-  }
-  // 4
-  // This mean a new car just entered
-  if (lot_4 == LOW && isParked[3] == false) {
-    Serial.println("A new car entered to slot 4");
-    // save the time its entered and save to firebase
-    // TIme
-    timeClient.update();
-    setTime(timeClient.getEpochTime());
-    String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
-    Serial.println(timeString);
-    isParked[3] = true;  // set the isParked to true
-    timeIn[3] = timeString;
-    // set LCD
-    setLCD(12, 1, false);
-  } else if (lot_4 == LOW && isParked[3] == true) {
-    // A new car is stay in the park, we already have save the time! Just print to the LCD that this slot is occupied
-    Serial.println("Parking slot 4 is occupied!");
-  } else if (lot_4 == HIGH && isParked[3] == true) {
-    // A new car has just leave the parking slot!!! Save the leave time to firebase
-    Serial.println("The car just leave the slot 4");
-    isParked[3] = false;
-    // TIme
-    timeClient.update();
-    setTime(timeClient.getEpochTime());
-    String timeString = String(day()) + "/" + String(month()) + "/" + String(year()) + " " + String(hour()) + ":" + String(minute()) + ":" + String(second());
-    Serial.println(timeString);
-    saveFirebase("4", timeIn[3], timeString);
-    // set LCD
-    setLCD(12, 1, true);
-  } else {
-    // The parking slot now is empty!!!
-    Serial.println("Parking slot 4 is empty");
-  }
-  Serial.println("---------------");
+  parkingSlotCheck(digitalRead(irSensor1Pin), 1);
+  parkingSlotCheck(digitalRead(irSensor2Pin), 2);
+  parkingSlotCheck(digitalRead(irSensor3Pin), 3);
+  parkingSlotCheck(digitalRead(irSensor4Pin), 4);
   delay(1000);
 }
 
@@ -282,7 +197,6 @@ void saveFirebase(String slot, String timeIn, String timeOut) {
     Firebase.RTDB.setJSON(&fbdo, parentPath.c_str(), &json);
   }
 }
-
 
 void setup() {
   // set the pins for ir sensors as input
